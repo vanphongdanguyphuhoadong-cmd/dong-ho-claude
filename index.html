@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đồng hồ mức sử dụng Claude</title>
+<style>
+  :root { --bg:#14161c; --card:#1c1f27; --text:#e8eaf0; --muted:#8a90a0; --track:#2a2e39; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:radial-gradient(circle at 30% 20%, #1f2430, var(--bg)); color:var(--text);
+    font-family:"Segoe UI", system-ui, sans-serif; }
+  body { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:16px; }
+  .row { display:flex; flex-wrap:wrap; gap:24px; justify-content:center; }
+  .card { background:var(--card); border-radius:24px; padding:20px 28px 22px; width:320px; text-align:center;
+    box-shadow:0 10px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05); }
+  .title { font-size:15px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .pct { font-size:38px; font-weight:600; margin-top:-34px; }
+  .reset { font-size:13px; color:var(--muted); margin-top:4px; }
+  svg { width:100%; height:auto; overflow:visible; }
+  .needle { transition:transform 1.2s cubic-bezier(.2,.9,.3,1.2); transform-origin:150px 150px; }
+  .arc { transition:stroke-dashoffset 1.2s ease, stroke .6s; }
+  .status { font-size:12px; color:var(--muted); }
+  .edit { position:fixed; right:14px; bottom:14px; opacity:.25; transition:opacity .2s; }
+  .edit:hover, .edit.open { opacity:1; }
+  .edit button { background:var(--card); color:var(--text); border:1px solid var(--track); border-radius:10px; padding:6px 12px; cursor:pointer; }
+  .panel { display:none; background:var(--card); border:1px solid var(--track); border-radius:14px; padding:14px; margin-bottom:8px; width:260px; }
+  .edit.open .panel { display:block; }
+  .panel label { display:block; font-size:12px; color:var(--muted); margin:8px 0 3px; }
+  .panel input { width:100%; padding:6px 8px; border-radius:8px; border:1px solid var(--track); background:#12141a; color:var(--text); }
+  .panel .save { margin-top:12px; width:100%; }
+</style>
+</head>
+<body>
+<div class="row" id="row"></div>
+<div class="status" id="status">Đang tải…</div>
+
+<div class="edit" id="edit">
+  <div class="panel">
+    <label>Phiên hiện tại – đã dùng (%)</label><input type="number" min="0" max="100" id="p1">
+    <label>Phiên – đặt lại lúc</label><input type="text" id="r1">
+    <label>Tuần này – đã dùng (%)</label><input type="number" min="0" max="100" id="p2">
+    <label>Tuần – đặt lại lúc</label><input type="text" id="r2">
+    <label>Mật khẩu (token)</label><input type="password" id="tk">
+    <button class="save" id="save">Lưu lên Google Sheet</button>
+  </div>
+  <button id="toggle">⚙ Cập nhật số liệu</button>
+</div>
+
+<script>
+// ====== CẤU HÌNH: dán URL Web App của Apps Script vào đây ======
+const API_URL = "https://script.google.com/macros/s/AKfycbwK2abVV_Y8BC5HQHTpEgEsyetjl698lidnj7ZMaovqw9VwPikj-yYPxNXemiAp0lRWjw/exec";
+const REFRESH_MS = 60000; // tự tải lại mỗi 60 giây
+// ===============================================================
+
+let S = { p1:0, r1:"--:--", p2:0, r2:"--" };
+try { Object.assign(S, JSON.parse(localStorage.getItem("claudeGauge")||"{}")); } catch(e){}
+
+const R = 110, C = Math.PI * R;
+const color = p => p<60 ? "#3b82f6" : p<85 ? "#f59e0b" : "#ef4444";
+const $ = id => document.getElementById(id);
+
+function card(id, title){
+  return '<div class="card" id="' + id + '">' +
+    '<div class="title">' + title + '</div>' +
+    '<svg viewBox="0 0 300 175">' +
+      '<path d="M40 150 A110 110 0 0 1 260 150" fill="none" stroke="var(--track)" stroke-width="18" stroke-linecap="round"/>' +
+      '<path class="arc" d="M40 150 A110 110 0 0 1 260 150" fill="none" stroke="#3b82f6" stroke-width="18" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + C + '"/>' +
+      '<g class="needle" style="transform:rotate(-90deg)">' +
+        '<line x1="150" y1="150" x2="150" y2="62" stroke="#e8eaf0" stroke-width="4" stroke-linecap="round"/>' +
+        '<circle cx="150" cy="150" r="9" fill="#e8eaf0"/>' +
+      '</g>' +
+      '<text x="36" y="170" fill="#8a90a0" font-size="12">0</text>' +
+      '<text x="246" y="170" fill="#8a90a0" font-size="12">100</text>' +
+    '</svg>' +
+    '<div class="pct">0%</div>' +
+    '<div class="reset"></div>' +
+  '</div>';
+}
+$("row").innerHTML = card("g1","Phiên hiện tại") + card("g2","Tuần này");
+
+function setGauge(id, pct, reset){
+  pct = Math.max(0, Math.min(100, Number(pct)||0));
+  const el = $(id), arc = el.querySelector(".arc");
+  arc.style.strokeDashoffset = C * (1 - pct/100);
+  arc.style.stroke = color(pct);
+  el.querySelector(".needle").style.transform = "rotate(" + (-90 + pct*1.8) + "deg)";
+  el.querySelector(".pct").textContent = pct + "%";
+  el.querySelector(".reset").textContent = "Đặt lại vào " + reset;
+}
+function render(){
+  setGauge("g1", S.p1, S.r1); setGauge("g2", S.p2, S.r2);
+  ["p1","r1","p2","r2"].forEach(k => { if (document.activeElement !== $(k)) $(k).value = S[k]; });
+}
+const configured = () => API_URL && !API_URL.startsWith("DAN_URL");
+
+async function load(){
+  if (!configured()) { $("status").textContent = "Chưa cấu hình API_URL (đang dùng dữ liệu lưu cục bộ)"; render(); return; }
+  try {
+    const d = await (await fetch(API_URL, {cache:"no-store"})).json();
+    if (d.error) throw new Error(d.error);
+    S = { p1:d.p1, r1:d.r1, p2:d.p2, r2:d.r2 };
+    try { localStorage.setItem("claudeGauge", JSON.stringify(S)); } catch(e){}
+    $("status").textContent = "Cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
+  } catch(e) {
+    $("status").textContent = "Lỗi tải dữ liệu, đang hiển thị bản lưu gần nhất";
+  }
+  render();
+}
+
+$("tk").value = localStorage.getItem("claudeToken") || "";
+$("save").onclick = async () => {
+  if (!configured()) { alert("Chưa dán API_URL trong index.html"); return; }
+  const body = { token:$("tk").value, p1:Number($("p1").value), r1:$("r1").value, p2:Number($("p2").value), r2:$("r2").value };
+  $("status").textContent = "Đang lưu…";
+  try {
+    // Content-Type mặc định text/plain để tránh preflight CORS của Apps Script
+    const d = await (await fetch(API_URL, {method:"POST", body:JSON.stringify(body)})).json();
+    if (d.error) throw new Error(d.error);
+    localStorage.setItem("claudeToken", $("tk").value);
+    $("status").textContent = "Đã lưu lên Google Sheet";
+    await load();
+  } catch(e) { $("status").textContent = "Lưu thất bại: " + e.message; }
+};
+$("toggle").onclick = () => $("edit").classList.toggle("open");
+
+render();
+setTimeout(load, 150);
+setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
