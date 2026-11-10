@@ -5,34 +5,78 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Đồng hồ mức sử dụng Claude</title>
 <style>
-  :root { --bg:#14161c; --card:#1c1f27; --text:#e8eaf0; --muted:#8a90a0; --track:#2a2e39; }
+  :root { --ink:#3b1f1a; --red:#c8102e; --muted:#8c6f63; }
   * { box-sizing:border-box; }
-  html,body { margin:0; height:100%; background:radial-gradient(circle at 30% 20%, #1f2430, var(--bg)); color:var(--text);
-    font-family:"Segoe UI", system-ui, sans-serif; }
-  body { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:16px; }
-  .row { display:flex; flex-wrap:wrap; gap:24px; justify-content:center; }
-  .card { background:var(--card); border-radius:24px; padding:20px 28px 22px; width:320px; text-align:center;
-    box-shadow:0 10px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05); }
-  .title { font-size:15px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-  .pct { font-size:38px; font-weight:600; margin-top:-34px; }
-  .reset { font-size:13px; color:var(--muted); margin-top:4px; }
-  svg { width:100%; height:auto; overflow:visible; }
-  .needle { transition:transform 1.2s cubic-bezier(.2,.9,.3,1.2); transform-origin:150px 150px; }
-  .arc { transition:stroke-dashoffset 1.2s ease, stroke .6s; }
-  .status { font-size:12px; color:var(--muted); }
-  .edit { position:fixed; right:14px; bottom:14px; opacity:.25; transition:opacity .2s; }
+  html,body { margin:0; min-height:100%; }
+  body {
+    min-height:100vh; color:var(--ink);
+    font-family:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;
+    background:
+      radial-gradient(ellipse at 50% 0%, #fffaf0 0%, rgba(255,250,240,0) 60%),
+      linear-gradient(160deg, #fbf3e6 0%, #f7ead6 55%, #f3e2c8 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:22px; padding:28px 16px 22vh; position:relative; overflow-x:hidden;
+  }
+  .swoosh { position:fixed; top:0; right:0; width:60vw; height:30vh; pointer-events:none; opacity:.9; }
+  .ribbon { position:fixed; left:0; right:0; bottom:0; width:100%; height:20vh; pointer-events:none; z-index:0; }
+  h1 { margin:0; font-family:Georgia,"Times New Roman",serif; font-weight:600; font-size:clamp(26px,4vw,44px);
+       letter-spacing:.01em; color:#4a2418; z-index:1; text-align:center; }
+  .row { display:flex; flex-wrap:wrap; gap:clamp(20px,4vw,56px); justify-content:center; z-index:1; }
+  .card { width:min(86vw,380px); filter:drop-shadow(0 14px 22px rgba(120,70,30,.22)); }
+  .card svg { width:100%; height:auto; display:block; }
+  .arc { transition:stroke-dashoffset 1.3s cubic-bezier(.25,.8,.25,1); }
+  .status { font-size:12px; color:var(--muted); z-index:1; }
+  .edit { position:fixed; right:14px; bottom:14px; z-index:5; opacity:.55; transition:opacity .2s; }
   .edit:hover, .edit.open { opacity:1; }
-  .edit button { background:var(--card); color:var(--text); border:1px solid var(--track); border-radius:10px; padding:6px 12px; cursor:pointer; }
-  .panel { display:none; background:var(--card); border:1px solid var(--track); border-radius:14px; padding:14px; margin-bottom:8px; width:260px; }
+  .edit button { background:#fffaf0; color:var(--ink); border:1px solid #d9b46a; border-radius:10px; padding:6px 12px; cursor:pointer; }
+  .panel { display:none; background:#fffaf0; border:1px solid #d9b46a; border-radius:14px; padding:14px; margin-bottom:8px; width:260px;
+           box-shadow:0 10px 24px rgba(0,0,0,.25); }
   .edit.open .panel { display:block; }
   .panel label { display:block; font-size:12px; color:var(--muted); margin:8px 0 3px; }
-  .panel input { width:100%; padding:6px 8px; border-radius:8px; border:1px solid var(--track); background:#12141a; color:var(--text); }
-  .panel .save { margin-top:12px; width:100%; }
+  .panel input { width:100%; padding:6px 8px; border-radius:8px; border:1px solid #e0cba5; background:#fff; color:var(--ink); }
+  .panel .save { margin-top:12px; width:100%; background:#c8102e; color:#fff; border-color:#c8102e; }
 </style>
 </head>
 <body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7dc8f"/><stop offset=".45" stop-color="#c8962c"/>
+      <stop offset=".7" stop-color="#f3d27a"/><stop offset="1" stop-color="#b98322"/>
+    </linearGradient>
+    <radialGradient id="cardfill" cx=".5" cy=".38" r=".75">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#fbf1e2"/>
+    </radialGradient>
+    <linearGradient id="gr1" gradientUnits="userSpaceOnUse" x1="60" y1="205" x2="60" y2="70">
+      <stop id="gr1a" offset="0" stop-color="#ff9f0a"/><stop id="gr1b" offset="1" stop-color="#ffb020"/>
+    </linearGradient>
+    <linearGradient id="gr2" gradientUnits="userSpaceOnUse" x1="60" y1="205" x2="60" y2="70">
+      <stop id="gr2a" offset="0" stop-color="#ff9f0a"/><stop id="gr2b" offset="1" stop-color="#ffb020"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<svg class="swoosh" viewBox="0 0 800 220" preserveAspectRatio="none" aria-hidden="true">
+  <defs><linearGradient id="sw" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#e9c97d" stop-opacity=".8"/></linearGradient></defs>
+  <path d="M0 200 C260 120 520 140 800 20" fill="none" stroke="url(#sw)" stroke-width="3"/>
+  <path d="M120 220 C340 150 580 150 800 70" fill="none" stroke="url(#sw)" stroke-width="2"/>
+</svg>
+
+<h1>Mức sử dụng Claude</h1>
 <div class="row" id="row"></div>
 <div class="status" id="status">Đang tải…</div>
+
+<svg class="ribbon" viewBox="0 0 1440 220" preserveAspectRatio="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="red" x1="0" x2="1"><stop offset="0" stop-color="#e93f2c"/><stop offset="1" stop-color="#ae1119"/></linearGradient>
+    <linearGradient id="goldl" x1="0" x2="1"><stop offset="0" stop-color="#f6d58a"/><stop offset=".5" stop-color="#c9962e"/><stop offset="1" stop-color="#f6d58a"/></linearGradient>
+  </defs>
+  <path d="M0 150 C240 100 460 175 760 190 C1060 205 1260 140 1440 100 L1440 220 L0 220 Z" fill="url(#red)"/>
+  <path d="M0 150 C240 100 460 175 760 190 C1060 205 1260 140 1440 100" fill="none" stroke="url(#goldl)" stroke-width="4"/>
+  <path d="M0 122 C260 68 520 150 820 176 C1100 200 1300 120 1440 66" fill="none" stroke="url(#goldl)" stroke-width="2" opacity=".75"/>
+  <path d="M0 98 C280 44 540 128 840 160 C1120 186 1320 100 1440 40" fill="none" stroke="url(#goldl)" stroke-width="1.2" opacity=".5"/>
+</svg>
 
 <div class="edit" id="edit">
   <div class="panel">
@@ -47,48 +91,81 @@
 </div>
 
 <script>
-// ====== CẤU HÌNH: dán URL Web App của Apps Script vào đây ======
+// ====== CẤU HÌNH: URL Web App của Apps Script ======
 const API_URL = "https://script.google.com/macros/s/AKfycbwK2abVV_Y8BC5HQHTpEgEsyetjl698lidnj7ZMaovqw9VwPikj-yYPxNXemiAp0lRWjw/exec";
 const REFRESH_MS = 60000; // tự tải lại mỗi 60 giây
-// ===============================================================
+// ===================================================
 
 let S = { p1:0, r1:"--:--", p2:0, r2:"--" };
 try { Object.assign(S, JSON.parse(localStorage.getItem("claudeGauge")||"{}")); } catch(e){}
 
-const R = 110, C = Math.PI * R;
-const color = p => p<60 ? "#3b82f6" : p<85 ? "#f59e0b" : "#ef4444";
 const $ = id => document.getElementById(id);
+const ARC = "M59.07 202.5 A105 105 0 1 1 240.93 202.5";
+const INK = "#3b1f1a";
 
-function card(id, title){
+const ICON_LAPTOP =
+  '<rect x="-15" y="-12" width="30" height="20" rx="2.5" fill="none" stroke="' + INK + '" stroke-width="2.2"/>' +
+  '<path d="M-21 12.5 H21" stroke="' + INK + '" stroke-width="2.4" stroke-linecap="round"/>';
+const ICON_CAL =
+  '<rect x="-14" y="-13" width="28" height="27" rx="4.5" fill="none" stroke="' + INK + '" stroke-width="2.2"/>' +
+  '<path d="M-14 -4 H14 M-7 -18 V-9 M7 -18 V-9" stroke="' + INK + '" stroke-width="2.2" stroke-linecap="round"/>' +
+  '<g fill="' + INK + '"><circle cx="-7" cy="3" r="1.4"/><circle cx="0" cy="3" r="1.4"/><circle cx="7" cy="3" r="1.4"/>' +
+  '<circle cx="-7" cy="9.5" r="1.4"/><circle cx="0" cy="9.5" r="1.4"/><circle cx="7" cy="9.5" r="1.4"/></g>';
+const ICON_CLOCK =
+  '<circle r="8" fill="none" stroke="#c8102e" stroke-width="1.8"/>' +
+  '<path d="M0 -4 V0.5 L3.5 2.5" fill="none" stroke="#c8102e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+
+function card(id, grad, title, icon){
   return '<div class="card" id="' + id + '">' +
-    '<div class="title">' + title + '</div>' +
-    '<svg viewBox="0 0 300 175">' +
-      '<path d="M40 150 A110 110 0 0 1 260 150" fill="none" stroke="var(--track)" stroke-width="18" stroke-linecap="round"/>' +
-      '<path class="arc" d="M40 150 A110 110 0 0 1 260 150" fill="none" stroke="#3b82f6" stroke-width="18" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + C + '"/>' +
-      '<g class="needle" style="transform:rotate(-90deg)">' +
-        '<line x1="150" y1="150" x2="150" y2="62" stroke="#e8eaf0" stroke-width="4" stroke-linecap="round"/>' +
-        '<circle cx="150" cy="150" r="9" fill="#e8eaf0"/>' +
-      '</g>' +
-      '<text x="36" y="170" fill="#8a90a0" font-size="12">0</text>' +
-      '<text x="246" y="170" fill="#8a90a0" font-size="12">100</text>' +
-    '</svg>' +
-    '<div class="pct">0%</div>' +
-    '<div class="reset"></div>' +
-  '</div>';
+    '<svg viewBox="0 0 300 300">' +
+      '<circle cx="150" cy="150" r="146" fill="url(#cardfill)" stroke="url(#gold)" stroke-width="3.5"/>' +
+      '<circle cx="150" cy="150" r="138" fill="none" stroke="url(#gold)" stroke-opacity=".35" stroke-width="1"/>' +
+      '<path d="' + ARC + '" pathLength="100" fill="none" stroke="#e4dfdb" stroke-width="16" stroke-linecap="round"/>' +
+      '<path class="arc" d="' + ARC + '" pathLength="100" fill="none" stroke="url(#' + grad + ')" stroke-width="16" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="100"/>' +
+      '<g transform="translate(150,84)">' + icon + '</g>' +
+      '<text x="150" y="132" text-anchor="middle" font-size="22" font-weight="600" fill="' + INK + '">' + title + '</text>' +
+      '<text class="pct" x="150" y="196" text-anchor="middle" font-size="64" font-weight="800" fill="#c8102e">0%</text>' +
+      '<path d="M82 222 H218" stroke="#e6d9cc" stroke-width="1"/>' +
+      '<g class="clk" transform="translate(80,246)">' + ICON_CLOCK + '</g>' +
+      '<text class="reset" x="150" y="251" text-anchor="middle" font-size="13" fill="#4a3a34"></text>' +
+    '</svg></div>';
 }
-$("row").innerHTML = card("g1","Phiên hiện tại") + card("g2","Tuần này");
+$("row").innerHTML =
+  card("g1", "gr1", "Phiên hiện tại", ICON_LAPTOP) +
+  card("g2", "gr2", "Tuần này", ICON_CAL);
 
-function setGauge(id, pct, reset){
+function mix(a, b, t){
+  const p = h => [1,3,5].map(i => parseInt(h.substr(i,2),16));
+  const A = p(a), B = p(b);
+  return "#" + A.map((v,i) => Math.round(v + (B[i]-v)*t).toString(16).padStart(2,"0")).join("");
+}
+
+function setGauge(id, gid, pct, reset){
   pct = Math.max(0, Math.min(100, Number(pct)||0));
   const el = $(id), arc = el.querySelector(".arc");
-  arc.style.strokeDashoffset = C * (1 - pct/100);
-  arc.style.stroke = color(pct);
-  el.querySelector(".needle").style.transform = "rotate(" + (-90 + pct*1.8) + "deg)";
+  arc.style.strokeDashoffset = 100 - pct;
+  arc.style.opacity = pct === 0 ? 0 : 1;
+  const t = Math.min(1, pct / 45);
+  $(gid + "a").setAttribute("stop-color", mix("#ff9f0a", "#e0221b", t));
+  $(gid + "b").setAttribute("stop-color", mix("#ffb020", "#ff9a1f", t));
   el.querySelector(".pct").textContent = pct + "%";
-  el.querySelector(".reset").textContent = "Đặt lại vào " + reset;
+
+  const r = el.querySelector(".reset");
+  while (r.firstChild) r.removeChild(r.firstChild);
+  r.appendChild(document.createTextNode("Đặt lại vào "));
+  const ts = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+  ts.setAttribute("font-weight", "700");
+  ts.setAttribute("fill", "#c8102e");
+  ts.textContent = reset;
+  r.appendChild(ts);
+  try {
+    const bb = r.getBBox();
+    el.querySelector(".clk").setAttribute("transform", "translate(" + (bb.x - 14) + ",246)");
+  } catch(e){}
 }
 function render(){
-  setGauge("g1", S.p1, S.r1); setGauge("g2", S.p2, S.r2);
+  setGauge("g1", "gr1", S.p1, S.r1);
+  setGauge("g2", "gr2", S.p2, S.r2);
   ["p1","r1","p2","r2"].forEach(k => { if (document.activeElement !== $(k)) $(k).value = S[k]; });
 }
 const configured = () => API_URL && !API_URL.startsWith("DAN_URL");
